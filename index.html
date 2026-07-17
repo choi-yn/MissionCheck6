@@ -485,31 +485,47 @@
     }
   }
 
-  // App Inventor에서 실행: setMissionPhoto('data:image/jpeg;base64,...')
+  // App Inventor: setMissionPhoto(...) 또는 WebViewString = PHOTO:...
   function setMissionPhoto(dataUrl){
-    if(!dataUrl || typeof dataUrl !== 'string') return;
-    dataUrl = dataUrl.replace(/^PHOTO:/, '');
+    if(!dataUrl || typeof dataUrl !== 'string'){
+      document.getElementById('photoHint').textContent = '사진 데이터가 비어 있어요.';
+      return false;
+    }
+    dataUrl = String(dataUrl).replace(/^PHOTO:/i, '').replace(/\s+/g, '');
+    if(!dataUrl){
+      document.getElementById('photoHint').textContent = '사진 데이터가 비어 있어요.';
+      return false;
+    }
     if(dataUrl.indexOf('data:') !== 0 && dataUrl.indexOf('http') !== 0 && dataUrl.indexOf('file:') !== 0){
-      dataUrl = 'data:image/jpeg;base64,' + dataUrl.replace(/\s/g, '');
+      dataUrl = 'data:image/jpeg;base64,' + dataUrl;
     }
     mode = 'photo';
     document.getElementById('screenList').classList.remove('active');
     document.getElementById('screenChoice').classList.add('active');
+    document.getElementById('nameInputWrap').style.display = 'none';
     document.getElementById('photoInputWrap').style.display = 'block';
+    document.getElementById('btnName').classList.remove('selected');
     document.getElementById('btnPhoto').classList.add('selected');
     applyPhotoDataUrl(dataUrl);
     document.getElementById('photoHint').textContent = '사진이 준비되었어요!';
+    return true;
   }
   window.setMissionPhoto = setMissionPhoto;
+  window.receiveMissionPhoto = setMissionPhoto;
 
   function applyPhotoDataUrl(dataUrl){
     const img = document.getElementById('photoPreview');
-    img.onload = function(){ checkReady(); };
-    img.onerror = function(){
-      document.getElementById('photoHint').textContent = '사진 표시에 실패했어요. base64(data:image...) 형태로 전달되는지 확인하세요.';
+    const hint = document.getElementById('photoHint');
+    img.onload = function(){
+      hint.textContent = '사진이 준비되었어요!';
+      checkReady();
     };
-    img.src = dataUrl;
+    img.onerror = function(){
+      hint.textContent = '사진 표시에 실패했어요. Base64 전달 방식을 확인해 주세요.';
+      checkReady();
+    };
     img.style.display = 'block';
+    img.src = dataUrl;
     checkReady();
   }
 
@@ -525,13 +541,14 @@
     e.target.value = '';
   }
 
-  // App Inventor → 웹: WebViewString = PHOTO:data:image/... 또는 PHOTO:base64
+  // App Inventor → 웹: WebViewString = PHOTO:... (RunJavaScript보다 안정적)
   let lastAiPhotoString = '';
   setInterval(function(){
     try{
       if(!window.AppInventor || typeof window.AppInventor.getWebViewString !== 'function') return;
       const s = window.AppInventor.getWebViewString() || '';
       if(!s || s === lastAiPhotoString) return;
+      if(s.indexOf('NEED_') === 0) return;
       if(s.indexOf('PHOTO:') === 0){
         lastAiPhotoString = s;
         setMissionPhoto(s.slice(6));
@@ -542,14 +559,15 @@
         try{ window.AppInventor.setWebViewString(''); }catch(e){}
       }
     }catch(e){}
-  }, 300);
+  }, 250);
 
   function checkReady(){
     let ready = false;
     if(mode === 'name'){
       ready = document.getElementById('nameInput').value.trim().length > 0;
     } else if(mode === 'photo'){
-      ready = document.getElementById('photoPreview').src && document.getElementById('photoPreview').style.display === 'block';
+      const img = document.getElementById('photoPreview');
+      ready = !!(img && img.style.display === 'block' && img.src && img.src.indexOf('data:image') === 0);
     }
     const btn = document.getElementById('goCertBtn');
     btn.disabled = !ready;
